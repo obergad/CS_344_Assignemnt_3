@@ -51,18 +51,16 @@ Has no functionality
 */
 void start_shell(){
     char *clear = "clear";
-    system(clear);
-    printf("\n\n\n\n******************"
+    printf("\n******************"
     "************************");
     printf("\n\n\n\t****Small Shell****");
     printf("\n\n\t -By: Adam Oberg-");
     printf("\n\n\n\n*******************"
     "***********************");
     char* username = getenv("USER");
-    printf("\n\n\nUSER is: @%s", username);
+    printf("\nUSER is: @%s", username);
     printf("\n");
     sleep(1);
-    system(clear);
 }
 /*
   Function: cmd_prompt
@@ -72,19 +70,52 @@ void start_shell(){
 */
 char* cmd_prompt(){
   char* userInput;
-  int successPrompt = 0; //Bool value stores 1 Success or 0 Fail
-  while (successPrompt == 0) {
-    userInput = NULL;
-    printf(": ");
-    scanf("%s", userInput);
-    successPrompt = 1;
-    printf("**Success**\nYour CMD line argument is: %s\n", userInput);
-  }
+  ssize_t bytesRead;
+
+
+
+
+
+  printf("test");
+  userInput = calloc(MAXCHAR + 1, sizeof(char));
+  printf(": ");
+
+  // Open the specified file for reading only
+  // FILE *movieFile = fopen(filePath, "r");
+
+  char *currLine = NULL;
+  size_t len = 0;
+  int nread;
+  // char *dirName;
+  // char *token;
+  int linenum = 1; //Use to skip the firt line of text
+
+  // nread = getline(&currLine, &len, FILE* stream);
+  userInput = currLine;
+  printf("**Success**\nYour CMD line argument is: %s\n", userInput);
+  printf("After Loop userInput: %s\n", userInput);
   return userInput;
 }
 
 int main(int argc, char const *argv[]) {
   start_shell();
-  cmd_prompt();
+
+
+    char *newargv[] = { "/bin/ls", "-al", NULL };
+    execv(newargv[0], newargv);
+    /* exec returns only on error */
+    perror("execv");
+
+
+
+    exit(EXIT_FAILURE);
+
+
+
+  // cmd_prompt();
+
+
+
+
   return 0;
 }
