@@ -15,18 +15,17 @@ This program will...
   --Support running commands in foreground and background processes
   --Implement custom handlers for 2 signals, SIGINT and SIGTSTP
 */
-#include<stdio.h>
-#include<string.h>
-#include<stdlib.h>
-#include<unistd.h>
-#include<sys/types.h>
-#include<sys/wait.h>
-#include<readline/readline.h>
-#include<readline/history.h>
+#include <stdio.h>
+#include <string.h>
+#include <stdlib.h>
+#include <unistd.h>
+#include <sys/types.h>
+#include <sys/wait.h>
+#include <readline/readline.h>
+#include <readline/history.h>
 
 #define MAXCHAR 2048 //Max number of characters to be supported.
 #define MAXARG 512  //Max number of arguments to be supported.
-
 
 struct cmd_line
 {
@@ -46,7 +45,9 @@ void exitProgram(int failure){
     fflush(stdout);
     i++;
   }
-  sleep(1);             //This is for the meme
+  sleep(1);
+  printf("\n");
+  fflush(stdout);
 
   if(failure == 1){
     exit(EXIT_FAILURE);
@@ -61,12 +62,11 @@ void exitProgram(int failure){
   Description: Pareses the users input into the struct cmd_line
   Input: char* of the userInput
   output: struct* cmd_line
-
 */
 struct cmd_line *parse_CMD(char* userInput){
     struct cmd_line* cmdInput = malloc(sizeof(struct cmd_line));
-    char buffer = " ";
     char *saveptr;
+
     if(strcmp(userInput, "\n") == 0){
       cmdInput->command = NULL;
       cmdInput->argList = NULL;
@@ -76,16 +76,27 @@ struct cmd_line *parse_CMD(char* userInput){
     }
 
 
-    char *token = strtok_r(userInput, buffer, &saveptr); //Take the first word in the line
+    char *token = strtok_r(userInput, " " , &saveptr); //Take the first word in the line
     cmdInput->command = calloc(strlen(token) + 1, sizeof(char)); //Allocate space in the struct
     strcpy(cmdInput->command, token);//Coppy the token into the struct
 
-    if(strcmp(token, cmdInput) == 0){
-      cmdInput->argList = NULL;
-      cmdInput->numArg = 0;
-      cmdInput->bgProcess = 0;
-      return cmdInput;
+    printf("Command is: %s\n", cmdInput->command); //Debug
+    fflush(stdout);
+
+    int i = 0;
+    cmdInput->argList = calloc(strlen(token) * MAXARG , sizeof(char));
+
+    while(strcmp(saveptr, "\0" ) != 0){
+
+      cmdInput->argList[i] = calloc(strlen(token) + 1, sizeof(char)); //Allocate space in the struct
+      token = strtok_r(NULL ," ", &saveptr); //Take each arg  of the the line and token it
+      strcpy(cmdInput->argList[i], token);//Coppy the token into the struct
+      printf("Argument %d: %s\n", i, cmdInput->argList[i]); //Debug
+      fflush(stdout);
+      i++; //Increase i
     }
+
+
 
 
     return cmdInput;
@@ -96,7 +107,6 @@ This fucntion is just made to display the creator of the program.
 Has no functionality
 */
 void start_shell(){
-    char *clear = "clear";
     printf("\n******************"
     "************************");
     printf("\n\n\n\t****Small Shell****");
@@ -106,6 +116,7 @@ void start_shell(){
     char* username = getenv("USER");
     printf("\nUSER is: @%s", username);
     printf("\n");
+    fflush(stdout);
     sleep(1);
 }
 
@@ -121,7 +132,7 @@ char* cmd_prompt(){
   size_t max = MAXCHAR;
   int nread; //Number of bytes read by the getline function.
   userInput = calloc(MAXCHAR + 1, sizeof(char)); //Allocating space for userinput and clear userInput
-  printf("\n:"); //Beginging of a newline in the command prompt.
+  printf(":"); //Beginging of a newline in the command prompt.
   fflush(stdout);
   nread = getline(&currLine, &max , stdin); //stdin reads from the commandline
   userInput = currLine;
@@ -133,18 +144,18 @@ char* cmd_prompt(){
   else if(strcmp(userInput, "\n") == 0 ){
     printf("Error: No input has been given.\n");
     fflush(stdout);
-    exitProgram(1);
+    return("\n");
   }
   else if(userInput[0] == '#' ){
-    printf("%s\n", userInput);
+    printf("\n");
     fflush(stdout);
-    return("\n");
+    return("\n");   //if its a comment return a null character this is
   }
   else{
   sleep(1);
   printf("\n");
   fflush(stdout);
-  printf("**Success**\nYour CMD line argument is: %s\n", userInput);
+  printf("==Success==\nYour CMD line argument is: %s\n", userInput);
   fflush(stdout);
   return userInput;
   }
@@ -154,10 +165,11 @@ char* cmd_prompt(){
 int main(int argc, char const *argv[]) {
     char* cmdLine;
     start_shell();
-    // do{
-    cmd_prompt();
-    // strcpy(cmdLine,cmd_prompt());
-    // }while (strcmp(cmdLine,"___EOF___") == 0);
+    do{
+    cmdLine =  calloc(MAXCHAR + 1, sizeof(char));
+    strcpy(cmdLine,cmd_prompt());
+    parse_CMD(cmdLine);
+  }while (strcmp(cmdLine,"___EOF___") != 0);
     exitProgram(0);
 
 
