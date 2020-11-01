@@ -26,6 +26,9 @@ This program will...
 
 #define MAXCHAR 2048 //Max number of characters to be supported.
 #define MAXARG 512  //Max number of arguments to be supported.
+#define PIDCHAR '$'
+
+int pid;
 
 struct cmd_line
 {
@@ -66,7 +69,25 @@ void exitProgram(int failure){
 struct cmd_line *parse_CMD(char* userInput){
     struct cmd_line* cmdInput = malloc(sizeof(struct cmd_line));
     char *saveptr;
-
+    char currChar = NULL;
+    int i = 0;
+    char* temp = calloc(MAXCHAR + 1, sizeof(char*));
+    char pidstr[16];
+    while(currChar != '\n'){
+      currChar = userInput[i];
+      if (currChar == '\n' || currChar == '\0') {
+          break;
+      }
+      if(userInput[i] == '$' && userInput[i+1] == '$'){
+        pid = getpid();
+        sprintf(pidstr, "%i", pid);
+        temp = strcat(temp, pidstr);
+        strcpy(userInput, temp);
+        break;
+      }
+      temp[i] = currChar;
+      i++;
+    }
     if(strcmp(userInput, "\n") == 0){
       cmdInput->command = NULL;
       cmdInput->argList = NULL;
@@ -83,7 +104,7 @@ struct cmd_line *parse_CMD(char* userInput){
     printf("Command is: %s\n", cmdInput->command); //Debug
     fflush(stdout);
 
-    int i = 0;
+    i = 0;
     cmdInput->argList = calloc(strlen(token) * MAXARG , sizeof(char));
 
     while(strcmp(saveptr, "\0" ) != 0){
@@ -165,6 +186,7 @@ char* cmd_prompt(){
 int main(int argc, char const *argv[]) {
     char* cmdLine;
     start_shell();
+    printf("PID: %d\n", pid);
     do{
     cmdLine =  calloc(MAXCHAR + 1, sizeof(char));
     strcpy(cmdLine,cmd_prompt());
