@@ -49,7 +49,14 @@ The built-in commands don't set the value of status. This means that however you
 
 A process can use chdir() (Links to an external site.) to change its directory. To test the implementation of the cd command in smallsh, don't use getenv("PWD") because it will not give you the correct result. Instead, you can use the function getcwd() (Links to an external site.). Here is why getenv("PWD") doesn't give you the correct result:
 
-PWD is an environment variable. As discussed in Module 4, Exploration: Environment "When a parent process forks a child process, the child process inherits the environment of its parent process." When you run smallsh from a bash shell, smallsh inherits the environment of this bash shell The value of PWD in the bash shell is set to the directory in which you are when you run the command to start smallsh smallsh inherits this value of PWD. When you change the directory in smallsh, it doesn't update the value of the environment variable PWD 5. Executing Other Commands Note that if exec() is told to execute something that it cannot do, like run a program that doesn't exist, it will fail, and return the reason why. In this case, your shell should indicate to the user that a command could not be executed (which you know because exec() returned an error), and set the value retrieved by the built-in status command to 1.
+PWD is an environment variable.
+As discussed in Module 4, Exploration: Environment "When a parent process forks a child process, the child process inherits the environment of its parent process."
+When you run smallsh from a bash shell, smallsh inherits the environment of this bash shell
+The value of PWD in the bash shell is set to the directory in which you are when you run the command to start smallsh
+smallsh inherits this value of PWD.
+When you change the directory in smallsh, it doesn't update the value of the environment variable PWD
+5. Executing Other Commands
+Note that if exec() is told to execute something that it cannot do, like run a program that doesn't exist, it will fail, and return the reason why. In this case, your shell should indicate to the user that a command could not be executed (which you know because exec() returned an error), and set the value retrieved by the built-in status command to 1.
 
 Make sure that the child process that has had an exec() call fail terminates itself, or else it often loops back up to the top and tries to become a parent shell. This is easy to spot: if the output of the grading script seems to be repeating itself, then you've likely got a child process that didn't terminate after a failed exec().
 
