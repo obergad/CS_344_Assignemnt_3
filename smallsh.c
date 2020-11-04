@@ -29,13 +29,14 @@ This program will...
 #include <fcntl.h>
 #include <signal.h>
 
-
-
 #define MAXCHAR 2048 //Max number of characters to be supported.
 #define MAXARG 512  //Max number of arguments to be supported.
 #define PIDCHAR '$'
 
+
+int CATCH_STGTSPT = 0; // For catching SIGTSTP
 int pid;
+// int fgMode = 1; //If fgMode is 1 that means that forground only mode is on otherwise it is not.
 int childProcess_id = 0;
 
 struct cmd_line
@@ -155,6 +156,8 @@ struct cmd_line *parse_CMD(char* userInput){
           cmdInput->argList[i] = calloc(strlen(token) + 1, sizeof(char)); //Allocate space in the struct
           strcpy(cmdInput->argList[i], token);//Coppy the token into the struct
           fflush(stdout);
+
+        //Detect background process
         if (strncmp(cmdInput->argList[i], "&", strlen("&")) == 0) {
           cmdInput->bgProcess = 1;
           cmdInput->argList[i] = NULL;
@@ -210,10 +213,14 @@ void run_status(){
       fflush(stdout);
     }
 }
+
+
+
+
 /*
     forks the current procrss and runs the command as a child
 */
-int run_Command(struct cmd_line *cmdInput){
+int run_Command(struct cmd_line *cmdInput, struct sigaction sigint_handler, struct sigaction sigstp_handler){
     int input;
     int output;
     int result;
@@ -223,23 +230,6 @@ int run_Command(struct cmd_line *cmdInput){
     if(strcmp(cmdInput->argList[0], "\n") == 0 || strcmp(cmdInput->argList[0], "\0") == 0 ){
     return 0;
     }
-
-    // //--------------------------------------------------------
-    // // Echo
-    // if (strcmp(cmdInput->argList[0], "echo") == 0 ) {
-    //   printf(":%s\n", cmdInput->arg);
-    //   fflush(stdout);
-    //   return 1;
-    // }
-    // else if (strcmp(cmdInput->argList[0], "echo\0") == 0 && cmdInput->numArg == 0) {
-    //   printf(":\n");
-    //   fflush(stdout);
-    //   return 1;
-    // }
-    // // Echo
-    // else if(strcmp(cmdInput->argList[0], "exit") == 0 ){
-    //   exitProgram();
-    // }
     //--------------------------------------------------------
     //CD
     if(strcmp(cmdInput->argList[0], "cd\n") == 0) {
@@ -261,10 +251,26 @@ int run_Command(struct cmd_line *cmdInput){
       exitProgram();
     }
     //CD
-    // //--------------------------------------------------------
+    //--------------------------------------------------------
+    //Run Status
     else if(strncmp(cmdInput->argList[0], "status", strlen("status")) == 0){
       run_status();
     }
+    //Run Status
+    //--------------------------------------------------------
+    //Sleep
+    else if(strncmp(cmdInput->argList[0], "sleep", strlen("sleep")) == 0){
+
+      if (cmdInput->bgProcess == 1) {
+
+      }
+      execvp(cmdInput->argList[0], cmdInput->argList);
+
+      // cmdInput->bgProcess == 1
+
+    }
+    //Sleep
+    // --------------------------------------------------------
     else{
       pid_t spawnPid = fork();
       switch(spawnPid){
@@ -275,6 +281,14 @@ int run_Command(struct cmd_line *cmdInput){
         case 0:
            // In the child process
            // Handle input, code is basically straight from https://repl.it/@cs344/54redirectc#main.c
+
+           if (cmdInput->bgProcess == 0) {
+             //Allows child to be kinda sus and airlock vented
+             sigint_handler.sa_handler = SIG_DFL;
+             sigaction(SIGINT, &sigint_handler, NULL);
+           }
+
+
           if (strcmp(cmdInput->inputName, "")) {
             // open the file
             printf("cmdInput->inputName:%s.\n", cmdInput->inputName );
@@ -313,8 +327,7 @@ int run_Command(struct cmd_line *cmdInput){
             // close that bad boy
             fcntl(output, F_SETFD, FD_CLOEXEC);
           }
-          fflush(stdout);
-
+           fflush(stdout);
            execvp(cmdInput->argList[0], cmdInput->argList);
            // exec only returns if there is an error
            perror("execvp");
@@ -323,9 +336,15 @@ int run_Command(struct cmd_line *cmdInput){
         default:
            // In the parent process
            // Wait for child's termination
+           if (cmdInput->bgProcess == 1 ) {
+             printf("Background PID is: %i\n", spawnPid );
+             fflush(stdout);
+           }
+           else{
            waitpid(childStatus, &childProcess_id, 0 );
            spawnPid = waitpid(spawnPid, &childStatus, 0);
            // printf("PARENT(%d): child(%d) terminated. Exiting\n", getpid(), spawnPid);
+          }
            break;
          }
     }
@@ -368,7 +387,50 @@ char* cmd_prompt(){
   return userInput;
 }
 
+
+
+// Code in this function interpereted from https://repl.it/@cs344/53singal2c
+void sigint_handler(int signo){
+  char* message = "Caught SIGINT, sleeping for 10 seconds\n";
+  // We are using write rather than printf
+	write(STDOUT_FILENO, message, 39);
+	sleep(10);
+}
+
+void SIGTSTP_handler(int signo){
+  if( signo == SIGTSTP){
+      if (CATCH_STGTSPT){
+        CATCH_STGTSPT = 0;
+      }
+      else{
+        CATCH_STGTSPT = 1;
+      }
+  }
+
+}
+
 int main(int argc, char const *argv[]) {
+
+  struct sigaction sigint_handler = { { 0 } };
+  struct sigaction sigtstp_handler = { { 0 } };
+
+  sigint_handler.sa_handler = SIG_IGN;
+  sigfillset(&sigint_handler.sa_mask);
+  sigint_handler.sa_flags = 0;
+  sigaction(SIGINT, &sigint_handler, NULL);
+
+  sigtstp_handler.sa_handler = SIGTSTP_handler;
+  sigfillset(&sigtstp_handler.sa_mask);
+  sigtstp_handler.sa_flags = 0;
+  sigaction(SIGTSTP, &sigtstp_handler, NULL);
+  //
+  // int sigaddset(&my_signal_set, signal);
+  // int sigdelset(&my_signal_set, signal);
+  // sigset_t my_signal_set;
+  // int sigemptyset(&my_signal_set);
+
+
+
     char* cmdLine;
     start_shell();
     printf("PID: %d\n", pid);
@@ -379,7 +441,7 @@ int main(int argc, char const *argv[]) {
       continue;
     }
     else {
-      run_Command(parse_CMD(cmdLine));
+      run_Command(parse_CMD(cmdLine), sigint_handler, sigtstp_handler);
     }
     } while (strcmp(cmdLine,"___EOF___") != 0);
     exitProgram();
