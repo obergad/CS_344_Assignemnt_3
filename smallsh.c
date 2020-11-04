@@ -89,13 +89,10 @@ struct cmd_line *parse_CMD(char* userInput){
     char* temp = calloc(MAXCHAR + 1, sizeof(char*));
     char pidstr[16];
     int bool = 0;
-    printf("running parse_CMD\n");
     if(strcmp(userInput, "\n") == 0 ||strcmp(userInput, "\0") == 0 ){
       cmdInput->argList = NULL;
       cmdInput->numArg = 0;
       cmdInput->bgProcess = 0;
-      printf("string was null\n");
-
     return cmdInput;
     }
     //==================================================================
@@ -108,6 +105,7 @@ struct cmd_line *parse_CMD(char* userInput){
     	}
     //==================================================================
     // Handle $$
+    i = 0;
     while(currChar != '\n' || currChar !='\0'){
       currChar = userInput[i];
       if (currChar == '\n' || currChar == '\0') {
@@ -126,15 +124,15 @@ struct cmd_line *parse_CMD(char* userInput){
     // Handle $$
     //==================================================================
 
-
-    const char space[2] = " ";
     i = 1;
 
     //Get the first string
-    cmdInput->argList = calloc(MAXCHAR * MAXARG , sizeof(char));
+    cmdInput->argList = malloc(sizeof(char*));
     char *token = strtok_r(userInput, " " , &saveptr); //Take the first word in the line
     cmdInput->argList[0] = calloc(strlen(token) + 1, sizeof(char)); //Allocate space in the struct
+    // strcat (token, " ");
     strcpy(cmdInput->argList[0], token);//Coppy the token into the struct
+    // strcat(cmdInput->argList[0], " ");
 
 
     cmdInput->arg = calloc(MAXCHAR, sizeof(char));
@@ -142,33 +140,39 @@ struct cmd_line *parse_CMD(char* userInput){
     while(strcmp(saveptr, "\0" ) != 0){
 
         // Check for > to find file input
-      if(strcmp(token, ">") == 0){
-        printf("Found >\n");
-        token = strtok(NULL,  " ");
-        strcpy(cmdInput->inputName, token);
-      }
-      // Check for > to find file output
-      else if(strcmp(token, "<") == 0){
-        printf("Found <\n");
-        token = strtok_r(NULL,  " ", &saveptr);
-        strcpy(cmdInput->outputName, token);
-      }
-      else {
           token = strtok_r(NULL ," ", &saveptr); //Take each arg  of the the line and token it
+          // strcat(token, " ");
           cmdInput->arg = strcat(cmdInput->arg, token);
+          // strcat(cmdInput->argList[i], " ");
           cmdInput->argList[i] = calloc(strlen(token) + 1, sizeof(char)); //Allocate space in the struct
           strcpy(cmdInput->argList[i], token);//Coppy the token into the struct
           fflush(stdout);
-        if (cmdInput->argList[i] == '&') {
+        if (strncmp(cmdInput->argList[i], "&", strlen("&")) == 0) {
           cmdInput->bgProcess = 1;
-        }
+
       }
       cmdInput->numArg = i;
       i++;
     }
+    cmdInput->argList[i+1] = NULL;
+
+    i = 0;
+    while ( i > cmdInput->numArg) {
+      if(strcmp( cmdInput->argList[i], ">") == 0){
+        printf("Found >\n");
+        strcpy(cmdInput->inputName, cmdInput->argList[i+1]);
+      }
+      // Check for > to find file output
+      else if(strcmp( cmdInput->argList[i], "<") == 0){
+        printf("Found <\n");
+        strcpy(cmdInput->outputName, cmdInput->argList[i+1]);
+      }
+      i++;
+    }
 
 
-    printf("cmdInput->argList[i]: at parse: %s\n", cmdInput->argList[0] );
+
+
     return cmdInput;
 }
 
@@ -185,110 +189,79 @@ void run_status(){
     forks the current procrss and runs the command as a child
 */
 int run_Command(struct cmd_line *cmdInput){
+
     char currDir[MAXCHAR];
     size_t size = MAXCHAR;
-    char arg[MAXCHAR];
     int childStatus;
-    printf("run_Command cmdInput->argList[0] = %s \n",  cmdInput->argList[0]);
     if(strcmp(cmdInput->argList[0], "\n") == 0 || strcmp(cmdInput->argList[0], "\0") == 0 ){
     return 0;
     }
-    char *newargv[] = {cmdInput->argList[0], cmdInput->arg, NULL};
 
-    //--------------------------------------------------------
-    // Echo
-    if (strcmp(cmdInput->argList[0], "echo") == 0 ) {
-      printf(":%s\n", cmdInput->arg);
-      fflush(stdout);
-      return 1;
-    }
-    else if (strcmp(cmdInput->argList[0], "echo\0") == 0 && cmdInput->numArg == 0) {
-      printf(":\n");
-      fflush(stdout);
-      return 1;
-    }
-    // Echo
-    else if(strcmp(cmdInput->argList[0], "exit") == 0 ){
-      exitProgram();
-    }
+    // //--------------------------------------------------------
+    // // Echo
+    // if (strcmp(cmdInput->argList[0], "echo") == 0 ) {
+    //   printf(":%s\n", cmdInput->arg);
+    //   fflush(stdout);
+    //   return 1;
+    // }
+    // else if (strcmp(cmdInput->argList[0], "echo\0") == 0 && cmdInput->numArg == 0) {
+    //   printf(":\n");
+    //   fflush(stdout);
+    //   return 1;
+    // }
+    // // Echo
+    // else if(strcmp(cmdInput->argList[0], "exit") == 0 ){
+    //   exitProgram();
+    // }
     //--------------------------------------------------------
     //CD
-    else if(strcmp(cmdInput->argList[0], "cd\n") == 0) {
+    if(strcmp(cmdInput->argList[0], "cd\n") == 0) {
       chdir(getenv("HOME"));
       getcwd(currDir, size);
       printf("You are now in: %s: \n",currDir);
-      waitpid(childStatus, childProcess_id, 0 );
+      waitpid(childStatus, &childProcess_id, 0 );
       return 1;
     }
     else if(strcmp(cmdInput->argList[0], "cd") == 0){
       printf("Executing cd with argument '%s'\n", cmdInput->arg);
-      DIR* currDir = opendir(".");
-       struct dirent *aDir;
-       while ((aDir = readdir(currDir)) != NULL) {
-         if(strcmp(cmdInput->argList[1], currDir->d_name) == 0){
-           chdir(cmdInput->argList[1]);
-           getcwd(currDir, size);
-           printf("You are now in: %s: \n",currDir);
-           waitpid(childStatus, childProcess_id, 0 );
-           return 1;
-       }
-       else{
-         printf("The directory: '%s' does not exist\n", cmdInput->argList[1]);
-         return 0;
-       }
-     }
+      chdir(cmdInput->argList[1]);
+      getcwd(currDir, size);
+      printf("You are now in: %s: \n",currDir);
+      waitpid(childStatus, &childProcess_id, 0 );
+      return 1;
+    }
+    else if(strcmp(cmdInput->argList[0], "exit") == 0){
+      exitProgram();
     }
     //CD
     // //--------------------------------------------------------
-    // // < && >
-    // for(size_t j = 0; j < cmdInput->numArg; j++){
-    //   printf("argList at %i: %s\n", j , cmdInput->argList[j] );
-    //   if(strcmp(cmdInput->argList[j], ">") == 0){
-    //     printf("Detected '>'\n");
-    //   }
-    //   else if(strcmp(cmdInput->argList[j], "<") == 0){
-    //     printf("Detected '<'\n");
-    //   }
-    // }
-    // // < && >
-    // //--------------------------------------------------------
-
-
-
-
-
     else{
-      return 1;
-      char *newargv[] = {cmdInput->argList[0] , cmdInput->argList[0], NULL};
-
+      pid_t spawnPid = fork();
+      switch(spawnPid){
+        case -1:
+           perror("fork()\n");
+           exit(1);
+           break;
+        case 0:
+           // In the child process
+           // printf("CHILD(%d) running command\n", getpid());
+           // Replace the current program with "/bin/ls"
+           execvp(cmdInput->argList[0], cmdInput->argList);
+           // exec only returns if there is an error
+           perror("execvp");
+           exit(2);
+           break;
+        default:
+           // In the parent process
+           // Wait for child's termination
+           waitpid(childStatus, &childProcess_id, 0 );
+           spawnPid = waitpid(spawnPid, &childStatus, 0);
+           // printf("PARENT(%d): child(%d) terminated. Exiting\n", getpid(), spawnPid);
+           break;
+         }
     }
-    pid_t spawnPid = fork();
-    switch(spawnPid){
-      case -1:
-         perror("fork()\n");
-         exit(1);
-         break;
-      case 0:
-         // In the child process
-         printf("CHILD(%d) running command\n", getpid());
-         // Replace the current program with "/bin/ls"
-         execvp(newargv[0], newargv);
-         // exec only returns if there is an error
-         perror("execve");
-         exit(2);
-         break;
-      default:
-         // In the parent process
-         // Wait for child's termination
-         waitpid(childStatus, childProcess_id, 0 );
-         spawnPid = waitpid(spawnPid, &childStatus, 0);
-         printf("PARENT(%d): child(%d) terminated. Exiting\n", getpid(), spawnPid);
-         exit(0);
-         break;
-       }
+    return -1;
 }
-
-
 /*
   Function: cmd_prompt
   Description: simply prompts the command prompt for the user and takes in a value
@@ -335,9 +308,7 @@ int main(int argc, char const *argv[]) {
     do{
     cmdLine =  calloc(MAXCHAR + 1, sizeof(char));
     strcpy(cmdLine,cmd_prompt());
-    printf("cmdline: %s\n", cmdLine);
     if (strcmp(cmdLine, "\n") == 0 || strcmp(cmdLine, "\0") == 0 ) {
-      printf("empty string\n");
       continue;
     }
     else{
