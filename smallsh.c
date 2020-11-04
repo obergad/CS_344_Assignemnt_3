@@ -128,19 +128,18 @@ struct cmd_line *parse_CMD(char* userInput){
 
 
     const char space[2] = " ";
+    i = 1;
+
+    //Get the first string
+    cmdInput->argList = calloc(MAXCHAR * MAXARG , sizeof(char));
+    char *token = strtok_r(userInput, " " , &saveptr); //Take the first word in the line
+    cmdInput->argList[0] = calloc(strlen(token) + 1, sizeof(char)); //Allocate space in the struct
+    strcpy(cmdInput->argList[0], token);//Coppy the token into the struct
 
 
-    // //Take the first word in the line
-    // //Allocate space in the struct
-    // cmdInput->argList[0] = calloc(strlen(token) + 1, sizeof(char));
-    // //Coppy the token into the struct
-    // strcpy(cmdInput->argList[0], token);
-    // fflush(stdout);
-    i = 0;
-    char *token = strtok(userInput, space);
-    cmdInput->argList = calloc(strlen(token) * MAXARG , sizeof(char));
-    cmdInput->arg = calloc(strlen(token), sizeof(char));
-    while(strcmp(token, "\0" ) != 0){
+    cmdInput->arg = calloc(MAXCHAR, sizeof(char));
+
+    while(strcmp(saveptr, "\0" ) != 0){
 
         // Check for > to find file input
       if(strcmp(token, ">") == 0){
@@ -151,19 +150,15 @@ struct cmd_line *parse_CMD(char* userInput){
       // Check for > to find file output
       else if(strcmp(token, "<") == 0){
         printf("Found <\n");
-        token = strtok(NULL,  " ");
+        token = strtok_r(NULL,  " ", &saveptr);
         strcpy(cmdInput->outputName, token);
       }
-      else{
-        //Allocate space in the struct
-        cmdInput->argList[i] = calloc(strlen(token) + 1, sizeof(char));
-        //Take each arg  of the the line and token it
-        token = strtok(NULL, space);
-        printf("Current token at space %i: %s\n", i, token);
-        //Coppy the token into the struct
-        strcpy(cmdInput->argList[i], token);
-        //add to the total arg array
-        cmdInput->arg = strcat(cmdInput->arg, token);
+      else {
+          token = strtok_r(NULL ," ", &saveptr); //Take each arg  of the the line and token it
+          cmdInput->arg = strcat(cmdInput->arg, token);
+          cmdInput->argList[i] = calloc(strlen(token) + 1, sizeof(char)); //Allocate space in the struct
+          strcpy(cmdInput->argList[i], token);//Coppy the token into the struct
+          fflush(stdout);
         if (cmdInput->argList[i] == '&') {
           cmdInput->bgProcess = 1;
         }
@@ -227,11 +222,21 @@ int run_Command(struct cmd_line *cmdInput){
     }
     else if(strcmp(cmdInput->argList[0], "cd") == 0){
       printf("Executing cd with argument '%s'\n", cmdInput->arg);
-      chdir(cmdInput->argList[0]);
-      getcwd(currDir, size);
-      printf("You are now in: %s: \n",currDir);
-      waitpid(childStatus, childProcess_id, 0 );
-      return 1;
+      DIR* currDir = opendir(".");
+       struct dirent *aDir;
+       while ((aDir = readdir(currDir)) != NULL) {
+         if(strcmp(cmdInput->argList[1], currDir->d_name) == 0){
+           chdir(cmdInput->argList[1]);
+           getcwd(currDir, size);
+           printf("You are now in: %s: \n",currDir);
+           waitpid(childStatus, childProcess_id, 0 );
+           return 1;
+       }
+       else{
+         printf("The directory: '%s' does not exist\n", cmdInput->argList[1]);
+         return 0;
+       }
+     }
     }
     //CD
     // //--------------------------------------------------------
