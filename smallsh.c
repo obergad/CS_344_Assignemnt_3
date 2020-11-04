@@ -15,6 +15,7 @@ This program will...
   --Support running commands in foreground and background processes
   --Implement custom handlers for 2 signals, SIGINT and SIGTSTP
 */
+
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
@@ -22,15 +23,20 @@ This program will...
 #include <unistd.h>
 #include <sys/types.h>
 #include <sys/wait.h>
+#include <sys/stat.h>
 #include <readline/readline.h>
 #include <readline/history.h>
+#include <fcntl.h>
+#include <signal.h>
+
+
 
 #define MAXCHAR 2048 //Max number of characters to be supported.
 #define MAXARG 512  //Max number of arguments to be supported.
 #define PIDCHAR '$'
 
 int pid;
-int childProcess_id;
+int childProcess_id = 0;
 
 struct cmd_line
 {
@@ -38,7 +44,7 @@ struct cmd_line
   char** argList;//List of extra arguments from the user.
   int numArg; // Ammount of arguments
   int bgProcess; //TF value 1 TRUE or 0 FALSE || If '&' char is detected properly then is TRUE
-  char *inputName;
+  char* inputName;
   char* outputName;
 };
 /*
@@ -89,6 +95,8 @@ struct cmd_line *parse_CMD(char* userInput){
     char* temp = calloc(MAXCHAR + 1, sizeof(char*));
     char pidstr[16];
     int bool = 0;
+    cmdInput->inputName = calloc(MAXCHAR + 1, sizeof(char*));
+    cmdInput->outputName = calloc(MAXCHAR + 1, sizeof(char*));
     if(strcmp(userInput, "\n") == 0 ||strcmp(userInput, "\0") == 0 ){
       cmdInput->argList = NULL;
       cmdInput->numArg = 0;
@@ -127,7 +135,7 @@ struct cmd_line *parse_CMD(char* userInput){
     i = 1;
 
     //Get the first string
-    cmdInput->argList = malloc(sizeof(char*));
+    cmdInput->argList = malloc(sizeof(char*) * MAXARG + 1);
     char *token = strtok_r(userInput, " " , &saveptr); //Take the first word in the line
     cmdInput->argList[0] = calloc(strlen(token) + 1, sizeof(char)); //Allocate space in the struct
     // strcat (token, " ");
@@ -137,9 +145,9 @@ struct cmd_line *parse_CMD(char* userInput){
 
     cmdInput->arg = calloc(MAXCHAR, sizeof(char));
 
-    while(strcmp(saveptr, "\0" ) != 0){
+    while(strcmp(saveptr, "\0" ) != 0) {
 
-        // Check for > to find file input
+
           token = strtok_r(NULL ," ", &saveptr); //Take each arg  of the the line and token it
           // strcat(token, " ");
           cmdInput->arg = strcat(cmdInput->arg, token);
@@ -149,28 +157,37 @@ struct cmd_line *parse_CMD(char* userInput){
           fflush(stdout);
         if (strncmp(cmdInput->argList[i], "&", strlen("&")) == 0) {
           cmdInput->bgProcess = 1;
+          cmdInput->argList[i] = NULL;
 
       }
       cmdInput->numArg = i;
       i++;
     }
-    cmdInput->argList[i+1] = NULL;
+    cmdInput->argList[i] = NULL;
 
     i = 0;
-    while ( i > cmdInput->numArg) {
-      if(strcmp( cmdInput->argList[i], ">") == 0){
-        printf("Found >\n");
-        strcpy(cmdInput->inputName, cmdInput->argList[i+1]);
+    // Check for > to find file input
+    while ( i < cmdInput->numArg) {
+
+      if(strncmp( cmdInput->argList[i], "<", strlen("<")) == 0) {
+        printf("Found <\n");
+        strcpy(cmdInput->inputName, cmdInput->argList[i + 1]);
+        cmdInput->argList[i] = NULL;
+        cmdInput->argList[i + 1] = NULL;
+        i++;
+
       }
       // Check for > to find file output
-      else if(strcmp( cmdInput->argList[i], "<") == 0){
-        printf("Found <\n");
-        strcpy(cmdInput->outputName, cmdInput->argList[i+1]);
+      else if(strncmp( cmdInput->argList[i], ">", strlen(">")) == 0){
+        printf("Found >\n");
+        strcpy(cmdInput->outputName, cmdInput->argList[i + 1]);
+        cmdInput->argList[i] = NULL;
+        cmdInput->argList[i + 1] = NULL;
+        i++;
+
       }
       i++;
     }
-
-
 
 
     return cmdInput;
@@ -183,13 +200,23 @@ struct cmd_line *parse_CMD(char* userInput){
     output: void
 */
 void run_status(){
-
+    //code based on code shown in lecture / modules
+    if(WIFEXITED(childProcess_id)){
+      printf("exited normally with status %d\n", WEXITSTATUS(childProcess_id));
+      fflush(stdout);
+    }
+    else{
+      printf("exited not normally due to signal %d\n", WTERMSIG(childProcess_id));
+      fflush(stdout);
+    }
 }
 /*
     forks the current procrss and runs the command as a child
 */
 int run_Command(struct cmd_line *cmdInput){
-
+    int input;
+    int output;
+    int result;
     char currDir[MAXCHAR];
     size_t size = MAXCHAR;
     int childStatus;
@@ -235,6 +262,9 @@ int run_Command(struct cmd_line *cmdInput){
     }
     //CD
     // //--------------------------------------------------------
+    else if(strncmp(cmdInput->argList[0], "status", strlen("status")) == 0){
+      run_status();
+    }
     else{
       pid_t spawnPid = fork();
       switch(spawnPid){
@@ -244,8 +274,47 @@ int run_Command(struct cmd_line *cmdInput){
            break;
         case 0:
            // In the child process
-           // printf("CHILD(%d) running command\n", getpid());
-           // Replace the current program with "/bin/ls"
+           // Handle input, code is basically straight from https://repl.it/@cs344/54redirectc#main.c
+          if (strcmp(cmdInput->inputName, "")) {
+            // open the file
+            printf("cmdInput->inputName:%s.\n", cmdInput->inputName );
+            fflush(stdout);
+            input = open(cmdInput->inputName, O_RDONLY, 0644);
+            if (input == -1) {
+              perror("Unable to open the input file\n");
+              exit(1);
+            }
+            // assign the file
+            result = dup2(input, STDIN_FILENO);
+            if (result == -1) {
+              perror("Unable to assign the input file\n");
+              exit(2);
+            }
+            // trigger its close
+            fcntl(input, F_SETFD, FD_CLOEXEC);
+          }
+
+          // Handle output, code is basically straight from https://repl.it/@cs344/54redirectc#main.c
+          if (strcmp(cmdInput->outputName, "")) {
+            // open the file
+            printf("cmdInput->outputName: %s \n", cmdInput->outputName );
+            fflush(stdout);
+            output = open(cmdInput->outputName, O_WRONLY | O_CREAT | O_TRUNC , 0644);
+            if (output == -1) {
+              perror("Unable to open output file\n");
+              exit(1);
+            }
+            // assign the file
+            result = dup2(output, STDOUT_FILENO);
+            if (result == -1) {
+              perror("Unable to assign output file\n");
+              exit(2);
+            }
+            // close that bad boy
+            fcntl(output, F_SETFD, FD_CLOEXEC);
+          }
+          fflush(stdout);
+
            execvp(cmdInput->argList[0], cmdInput->argList);
            // exec only returns if there is an error
            perror("execvp");
@@ -293,10 +362,8 @@ char* cmd_prompt(){
     fflush(stdout);
     return("\n");   //if its a comment return a null character this is
   }
-  else{
-  printf("\n");
-  fflush(stdout);
-  return userInput;
+  else {
+    return userInput;
   }
   return userInput;
 }
@@ -305,16 +372,16 @@ int main(int argc, char const *argv[]) {
     char* cmdLine;
     start_shell();
     printf("PID: %d\n", pid);
-    do{
+    do {
     cmdLine =  calloc(MAXCHAR + 1, sizeof(char));
     strcpy(cmdLine,cmd_prompt());
     if (strcmp(cmdLine, "\n") == 0 || strcmp(cmdLine, "\0") == 0 ) {
       continue;
     }
-    else{
+    else {
       run_Command(parse_CMD(cmdLine));
     }
-    }while (strcmp(cmdLine,"___EOF___") != 0);
+    } while (strcmp(cmdLine,"___EOF___") != 0);
     exitProgram();
 
 
