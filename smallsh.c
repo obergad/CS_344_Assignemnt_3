@@ -91,21 +91,23 @@ void exitProgram(){
 struct cmd_line *parse_CMD(char* userInput){
     struct cmd_line* cmdInput = malloc(sizeof(struct cmd_line));
     char *saveptr;
-    char currChar = NULL;
+    char currChar = 0;
     int i = 0;
+    int bool = 0;
     char* temp = calloc(MAXCHAR + 1, sizeof(char*));
     char pidstr[16];
-    int bool = 0;
+
     cmdInput->inputName = calloc(MAXCHAR + 1, sizeof(char*));
     cmdInput->outputName = calloc(MAXCHAR + 1, sizeof(char*));
-    if(strcmp(userInput, "\n") == 0 ||strcmp(userInput, "\0") == 0 ){
+
+    if(userInput[0] < ' '){
       cmdInput->argList = NULL;
       cmdInput->numArg = 0;
       cmdInput->bgProcess = 0;
     return cmdInput;
     }
     //==================================================================
-    //Find newline and replace with \0
+    // //Find newline and replace with \0
     	for (i=0; bool != 1 && i<MAXCHAR; i++) {
     		if (userInput[i] == '\n') {
     			userInput[i] = '\0';
@@ -115,11 +117,13 @@ struct cmd_line *parse_CMD(char* userInput){
     //==================================================================
     // Handle $$
     i = 0;
+    currChar = userInput[0];
     while(currChar != '\n' || currChar !='\0'){
       currChar = userInput[i];
       if (currChar == '\n' || currChar == '\0') {
           break;
       }
+
       if(userInput[i] == '$' && userInput[i+1] == '$'){
         pid = getpid();
         sprintf(pidstr, "%i", pid);
@@ -133,66 +137,59 @@ struct cmd_line *parse_CMD(char* userInput){
     // Handle $$
     //==================================================================
 
-    i = 1;
-
+    i = 0;
     //Get the first string
     cmdInput->argList = malloc(sizeof(char*) * MAXARG + 1);
     char *token = strtok_r(userInput, " " , &saveptr); //Take the first word in the line
-    cmdInput->argList[0] = calloc(strlen(token) + 1, sizeof(char)); //Allocate space in the struct
-    // strcat (token, " ");
-    strcpy(cmdInput->argList[0], token);//Coppy the token into the struct
-    // strcat(cmdInput->argList[0], " ");
-
-
+    // cmdInput->argList[0] = calloc(strlen(token) + 1, sizeof(char)); //Allocate space in the struct
+    // strcpy(cmdInput->argList[0], token);//Coppy the token into the struct
     cmdInput->arg = calloc(MAXCHAR, sizeof(char));
-
-    while(strcmp(saveptr, "\0" ) != 0) {
-
-
-          token = strtok_r(NULL ," ", &saveptr); //Take each arg  of the the line and token it
-          // strcat(token, " ");
+    while(token) {
           cmdInput->arg = strcat(cmdInput->arg, token);
-          // strcat(cmdInput->argList[i], " ");
           cmdInput->argList[i] = calloc(strlen(token) + 1, sizeof(char)); //Allocate space in the struct
           strcpy(cmdInput->argList[i], token);//Coppy the token into the struct
           fflush(stdout);
+          token = strtok_r(NULL ," ", &saveptr); //Take each arg  of the the line and token it
 
         //Detect background process
         if (strncmp(cmdInput->argList[i], "&", strlen("&")) == 0) {
           cmdInput->bgProcess = 1;
           cmdInput->argList[i] = NULL;
-
       }
       cmdInput->numArg = i;
       i++;
     }
+    i = cmdInput->numArg + 1;
     cmdInput->argList[i] = NULL;
 
     i = 0;
     // Check for > to find file input
     while ( i < cmdInput->numArg) {
-
+      //-----------------------------------------------------------------------------------------
+      // Check for > to find file input
+      //-----------------------------------------------------------------------------------------
       if(strncmp( cmdInput->argList[i], "<", strlen("<")) == 0) {
         printf("Found <\n");
+        printf("cmdInput->argList[i + 1]: %s\n", cmdInput->argList[i + 1]);
         strcpy(cmdInput->inputName, cmdInput->argList[i + 1]);
         cmdInput->argList[i] = NULL;
         cmdInput->argList[i + 1] = NULL;
         i++;
-
       }
+      //-----------------------------------------------------------------------------------------
       // Check for > to find file output
+      //-----------------------------------------------------------------------------------------
       else if(strncmp( cmdInput->argList[i], ">", strlen(">")) == 0){
         printf("Found >\n");
+        printf("cmdInput->argList[i + 1]: %s\n", cmdInput->argList[i + 1]);
         strcpy(cmdInput->outputName, cmdInput->argList[i + 1]);
         cmdInput->argList[i] = NULL;
         cmdInput->argList[i + 1] = NULL;
         i++;
-
       }
       i++;
     }
-
-
+    fflush(stdout);
     return cmdInput;
 }
 
@@ -226,13 +223,13 @@ int run_Command(struct cmd_line *cmdInput, struct sigaction sigint_handler, stru
     int result;
     char currDir[MAXCHAR];
     size_t size = MAXCHAR;
-    int childStatus;
-    if(strcmp(cmdInput->argList[0], "\n") == 0 || strcmp(cmdInput->argList[0], "\0") == 0 ){
+    int childStatus = 69420;
+    if(!cmdInput->argList){
     return 0;
     }
     //--------------------------------------------------------
     //CD
-    if(strcmp(cmdInput->argList[0], "cd\n") == 0) {
+    if(strcmp(cmdInput->argList[0], "cd ") == 0) {
       chdir(getenv("HOME"));
       getcwd(currDir, size);
       printf("You are now in: %s: \n",currDir);
@@ -260,14 +257,11 @@ int run_Command(struct cmd_line *cmdInput, struct sigaction sigint_handler, stru
     //--------------------------------------------------------
     //Sleep
     else if(strncmp(cmdInput->argList[0], "sleep", strlen("sleep")) == 0){
-
-      if (cmdInput->bgProcess == 1) {
-
-      }
-      execvp(cmdInput->argList[0], cmdInput->argList);
-
-      // cmdInput->bgProcess == 1
-
+      //
+      // if (cmdInput->bgProcess == 1) {
+      // }
+      // else{
+      //   execvp(cmdInput->argList[0], cmdInput->argList);
     }
     //Sleep
     // --------------------------------------------------------
@@ -281,13 +275,11 @@ int run_Command(struct cmd_line *cmdInput, struct sigaction sigint_handler, stru
         case 0:
            // In the child process
            // Handle input, code is basically straight from https://repl.it/@cs344/54redirectc#main.c
-
            if (cmdInput->bgProcess == 0) {
-             //Allows child to be kinda sus and airlock vented
+             //Allows child to be terminated
              sigint_handler.sa_handler = SIG_DFL;
              sigaction(SIGINT, &sigint_handler, NULL);
            }
-
 
           if (strcmp(cmdInput->inputName, "")) {
             // open the file
@@ -335,12 +327,14 @@ int run_Command(struct cmd_line *cmdInput, struct sigaction sigint_handler, stru
            break;
         default:
            // In the parent process
-           // Wait for child's termination
-           if (cmdInput->bgProcess == 1 ) {
+           if (cmdInput->bgProcess == 1) {
              printf("Background PID is: %i\n", spawnPid );
              fflush(stdout);
+             waitpid(childStatus, &childProcess_id, WNOHANG);
+             spawnPid = waitpid(spawnPid, &childStatus, 0);
            }
            else{
+            // Wait for child's termination
            waitpid(childStatus, &childProcess_id, 0 );
            spawnPid = waitpid(spawnPid, &childStatus, 0);
            // printf("PARENT(%d): child(%d) terminated. Exiting\n", getpid(), spawnPid);
@@ -390,13 +384,19 @@ char* cmd_prompt(){
 
 
 // Code in this function interpereted from https://repl.it/@cs344/53singal2c
+//Function: sigint_handler
+//Input: int signo
+//Output: NULL
 void sigint_handler(int signo){
   char* message = "Caught SIGINT, sleeping for 10 seconds\n";
   // We are using write rather than printf
 	write(STDOUT_FILENO, message, 39);
 	sleep(10);
 }
-
+// Code in this function interpereted from https://repl.it/@cs344/53singal2c
+//Function: SIGTSTP_handler
+//Input: int signo
+//Output: NULL
 void SIGTSTP_handler(int signo){
   if( signo == SIGTSTP){
       if (CATCH_STGTSPT){
